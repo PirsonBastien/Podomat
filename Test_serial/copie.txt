@@ -1,0 +1,21 @@
+def Serial():
+    port = 'COM5'
+    baud_rate = 9600  # Assurez-vous que le débit binaire correspond à celui de votre appareil Bluetooth
+
+    try:
+        ser = serial.Serial(port, baud_rate, timeout=1)
+        print(f"Connexion établie sur {port} à {baud_rate} bps")
+        message='80'
+        ser.write(message.encode())
+
+        while True:
+                # Lire les données depuis le port COM
+                data = ser.readline().decode('utf-8').rstrip()
+
+                if data:
+                     print(f"Données reçues: {data}")
+                     tk.Label(fenetre,text=data).grid(column=10, row=8)
+                     break
+
+    except serial.SerialException as e:
+        print(f"Erreur lors de l'ouverture du port série : {e}")
