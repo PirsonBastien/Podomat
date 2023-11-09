@@ -1,32 +1,38 @@
 import tkinter as tk
 from tkinter import ttk, filedialog
+from typing import Dict, List
 
 import canvas
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.path import Path
+from matplotlib import patches
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import seaborn as sns
 
 # Déclaration de la variable globale pour ax
 ax = None
+data = {
+            'Timecode': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            'Mesure 1': [2, 4, 6, 8, 10, 14, 25, 49, 34, 24],
+            'Mesure 2': [1, 3, 5, 7, 9, 32, 14, 25, 49, 34],
+            'Mesure 3': [3, 6, 9, 12, 15, 2, 14, 25, 49, 34],
+            'Mesure 4': [4, 8, 12, 16, 20, 18, 14, 25, 49, 34],
+            'Mesure 5': [5, 10, 15, 20, 25, 42, 14, 25, 49, 34]
+        }
 
+max_value = max(max(data['Mesure 1']), max(data['Mesure 2']), max(data['Mesure 3']), max(data['Mesure 4']), max(data['Mesure 5']))
 
 # Fonction pour créer et afficher le graphique
-def show_graph():
-    timecode = [1, 2, 3, 4, 5]
-    mesure1 = [2, 4, 6, 8, 10]
-    mesure2 = [1, 3, 5, 7, 9]
-    mesure3 = [3, 6, 9, 12, 15]
-    mesure4 = [4, 8, 12, 16, 20]
-    mesure5 = [5, 10, 15, 20, 25]
-
+def show_graph(data):
+    timecode = data['Timecode']
     fig, ax = plt.subplots()
-    ax.plot(timecode, mesure1, label='Mesure 1', marker='o')
-    ax.plot(timecode, mesure2, label='Mesure 2', marker='o')
-    ax.plot(timecode, mesure3, label='Mesure 3', marker='o')
-    ax.plot(timecode, mesure4, label='Mesure 4', marker='o')
-    ax.plot(timecode, mesure5, label='Mesure 5', marker='o')
+
+    for key, value in data.items():
+        if key != 'Timecode':
+            ax.plot(timecode, value, label=key, marker='o')
 
     ax.set_xlabel('Timecode')
     ax.set_ylabel('Mesures')
@@ -39,15 +45,7 @@ def show_graph():
 
 
 # Fonction pour afficher le tableau de données
-def show_table():
-    data = {
-        'Timecode': [1, 2, 3, 4, 5],
-        'Mesure 1': [2, 4, 6, 8, 10],
-        'Mesure 2': [1, 3, 5, 7, 9],
-        'Mesure 3': [3, 6, 9, 12, 15],
-        'Mesure 4': [4, 8, 12, 16, 20],
-        'Mesure 5': [5, 10, 15, 20, 25]
-    }
+def show_table(data):
 
     tree = ttk.Treeview(tab2, columns=tuple(data.keys()), show='headings')
     for col in data.keys():
@@ -60,24 +58,17 @@ def show_table():
 
 # Fonction pour importer les données au format CSV
 def import_from_csv():
+    global data
     file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
     if file_path:
         df = pd.read_csv(file_path)
-        # Utilisez les données de df pour vos besoins
+        data = df.to_dict(orient='list')
 
 
 # Fonction pour exporter les données au format CSV
-def export_to_csv():
+def export_to_csv(data):
     file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
     if file_path:
-        data = {
-            'Timecode': [1, 2, 3, 4, 5],
-            'Mesure 1': [2, 4, 6, 8, 10],
-            'Mesure 2': [1, 3, 5, 7, 9],
-            'Mesure 3': [3, 6, 9, 12, 15],
-            'Mesure 4': [4, 8, 12, 16, 20],
-            'Mesure 5': [5, 10, 15, 20, 25]
-        }
         df = pd.DataFrame(data)
         df.to_csv(file_path, index=False)
 
@@ -92,37 +83,26 @@ def on_tab_change(event):
 
 
 # Fonction pour créer et afficher la heatmap
-def show_heatmap_on_tab4(timecode_value):
-    data = {
-        'Mesure 1': [2, 4, 6, 8, 10],
-        'Mesure 2': [1, 3, 5, 7, 9],
-        'Mesure 3': [3, 6, 9, 12, 15],
-        'Mesure 4': [4, 8, 12, 16, 20],
-        'Mesure 5': [5, 10, 15, 20, 25]
-    }  # Remplacez par vos propres données en fonction du timecode
-    selected_data = {key: [data[key][timecode_value - 1]] for key in data}
-    df = pd.DataFrame(selected_data)
-    fig, ax = plt.subplots(figsize=(8, 6))
-    sns.heatmap(df, annot=True, fmt="d", cmap="YlGnBu", cbar_kws={'label': 'Mesures'}, ax=ax)
-    canvas = FigureCanvasTkAgg(fig, master=tab4)
-    canvas.draw()
-    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+def show_heatmap_on_tab4(timecode_value, ax, data):
+    update_heatmap(timecode_value, ax, data)
 
 
 # Fonction pour mettre à jour la heatmap en fonction du timecode sélectionné
-def update_heatmap(timecode_value):
-    data = {
-        'Mesure 1': [2, 4, 6, 8, 10],
-        'Mesure 2': [1, 3, 5, 7, 9],
-        'Mesure 3': [3, 6, 9, 12, 15],
-        'Mesure 4': [4, 8, 12, 16, 20],
-        'Mesure 5': [5, 10, 15, 20, 25]
-    }  # Remplacez par vos propres données en fonction du timecode
+def update_heatmap(timecode_value, ax, data):
+    timecode = int(timecode_value)
+    first_values = [data['Mesure 1'][timecode-1], data['Mesure 2'][timecode-1], data['Mesure 3'][timecode-1],
+                    data['Mesure 4'][timecode-1], data['Mesure 5'][timecode-1]]
 
-    selected_data = {key: [data[key][timecode_value - 1]] for key in data}
-    df = pd.DataFrame(selected_data)
+    heatmap_data = np.zeros((3, 3))
+    heatmap_data[0, 0] = first_values[0]
+    heatmap_data[0, 2] = first_values[1]
+    heatmap_data[1, 1] = first_values[2]
+    heatmap_data[2, 0] = first_values[3]
+    heatmap_data[2, 2] = first_values[4]
+
     ax.clear()
-    sns.heatmap(df, annot=True, fmt="d", cmap="YlGnBu", cbar_kws={'label': 'Mesures'}, ax=ax)
+    im = ax.imshow(heatmap_data, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
+    colorbar.update_normal(im)
     canvas.draw()
 
 
@@ -158,25 +138,53 @@ tab_contents = []
 # Onglet 3 (contenant le graphique)
 tab3 = tabs[2]
 
-show_graph()  # Affichez le graphique dans l'onglet 1
+show_graph(data)  # Affichez le graphique dans l'onglet 1
 
 # Contenu pour l'onglet 2
 tab2 = tabs[1]
-show_table()  # Affichez le graphique dans l'onglet 1
+show_table(data)  # Affichez le graphique dans l'onglet 1
 
 # Contenu pour l'onglet 1
 tab1 = tabs[0]
 # Bouton d'exportation dans l'onglet 1
 export_button = ttk.Button(tab1, text="Exporter en CSV", command=export_to_csv)
-export_button.pack()
+export_button.pack(pady=10)
 
 # Bouton d'importation dans l'onglet 3
 import_button = ttk.Button(tab1, text="Importer depuis CSV", command=import_from_csv)
-import_button.pack()
+import_button.pack(pady=10)
+
+# Ajout du slider pour régler le temps de mesure
+time_slider_label = tk.Label(tab1, text="Réglage temps de mesure")
+time_slider_label.pack(pady=10)
+
+time_slider = tk.Scale(tab1, from_=1, to=180, orient="horizontal", length=300)
+time_slider.pack()
+
+# Ajout du bouton pour démarrer la mesure
+start_button = tk.Button(tab1, text="Démarrer la mesure", bg="green", fg="white", font=("Arial", 20, "bold"))
+start_button.pack(pady=20)
+
+# Ajout nécessaire de connexion pour le portenta dans l'onglet 1
+
+
+# Onglet 4 (contenant la heatmap)
+tab4 = tabs[3]
+
+fig = Figure(figsize=(5, 4), dpi=100)
+ax = fig.add_subplot(111)
+
+canvas = FigureCanvasTkAgg(fig, master=tab4)
+canvas.get_tk_widget().pack()
+
+# Initialisation de la colorbar
+heatmap_data = np.zeros((3, 3))
+im = ax.imshow(heatmap_data, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
+colorbar = fig.colorbar(im, ax=ax)
+colorbar.ax.set_ylabel('Mesures')
 
 # Curseur pour faire défiler les valeurs du timecode
-tab4 = tabs[3]
-slider = tk.Scale(tab4, from_=1, to=5, orient="horizontal", command=lambda value: show_heatmap_on_tab4(int(value)))
+slider = tk.Scale(tab4, from_=1, to=len(data['Timecode']), orient="horizontal", command=lambda value: show_heatmap_on_tab4(int(value), ax, data))
 slider.pack()
 
 # Associez la fonction on_tab_change à l'événement de changement d'onglet
