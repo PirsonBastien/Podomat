@@ -93,17 +93,46 @@ def update_heatmap(timecode_value, ax, data):
     first_values = [data['Mesure 1'][timecode-1], data['Mesure 2'][timecode-1], data['Mesure 3'][timecode-1],
                     data['Mesure 4'][timecode-1], data['Mesure 5'][timecode-1]]
 
-    heatmap_data = np.zeros((3, 3))
-    heatmap_data[0, 0] = first_values[0]
-    heatmap_data[0, 2] = first_values[1]
-    heatmap_data[1, 1] = first_values[2]
-    heatmap_data[2, 0] = first_values[3]
-    heatmap_data[2, 2] = first_values[4]
+    heatmap_data = np.zeros((50, 50))
+    heatmap_data[5, 5] = first_values[0]
+    heatmap_data[5, 45] = first_values[1]
+    heatmap_data[25, 25] = first_values[2]
+    heatmap_data[45, 5] = first_values[3]
+    heatmap_data[45, 45] = first_values[4]
 
     ax.clear()
     im = ax.imshow(heatmap_data, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
     colorbar.update_normal(im)
     canvas.draw()
+
+
+# Boutons pour faire défiler les timecodes
+def prev_timecode():
+    current_value = slider.get()
+    if current_value > 1:
+        slider.set(current_value - 1)
+
+
+def next_timecode():
+    current_value = slider.get()
+    if current_value < len(data['Timecode']):
+        slider.set(current_value + 1)
+
+
+# Bouton play/pause
+def toggle_play():
+    current_value = slider.get()
+    if current_value < len(data['Timecode']):
+        slider.set(current_value + 1)
+        tab4.after(1000, toggle_play)  # Change timecode every 1000 milliseconds (1 second)
+
+
+def toggle_restart():
+    slider.set(0)
+
+
+def toggle_end():
+    slider.set(len(data['Timecode']))
 
 
 # Créez une fenêtre principale
@@ -185,7 +214,23 @@ colorbar.ax.set_ylabel('Mesures')
 
 # Curseur pour faire défiler les valeurs du timecode
 slider = tk.Scale(tab4, from_=1, to=len(data['Timecode']), orient="horizontal", command=lambda value: show_heatmap_on_tab4(int(value), ax, data))
-slider.pack()
+slider.pack(side=tk.TOP)
+
+# Bp next et prev play pause
+restart_button = ttk.Button(tab4, text="<<", command=toggle_restart)
+restart_button.pack(side=tk.LEFT)
+
+prev_button = ttk.Button(tab4, text="Précédent", command=prev_timecode)
+prev_button.pack(side=tk.LEFT)
+
+play_button = ttk.Button(tab4, text="Play", command=toggle_play)
+play_button.pack(side=tk.LEFT)
+
+next_button = ttk.Button(tab4, text="Suivant", command=next_timecode)
+next_button.pack(side=tk.LEFT)
+
+end_button = ttk.Button(tab4, text=">>", command=toggle_end)
+end_button.pack(side=tk.LEFT)
 
 # Associez la fonction on_tab_change à l'événement de changement d'onglet
 notebook.bind("<<NotebookTabChanged>>", on_tab_change)
