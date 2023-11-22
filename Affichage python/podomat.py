@@ -12,8 +12,11 @@ from matplotlib import patches
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import seaborn as sns
 
+# Déclaration de la variable globale pour bp play/pause
+playing = True
 # Déclaration de la variable globale pour ax
 ax = None
+# Déclaration de la variable globale pour tableau de mesure
 data = {
             'Timecode': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
             'Mesure 1': [2, 4, 6, 8, 10, 14, 25, 49, 34, 24],
@@ -93,12 +96,25 @@ def update_heatmap(timecode_value, ax, data):
     first_values = [data['Mesure 1'][timecode-1], data['Mesure 2'][timecode-1], data['Mesure 3'][timecode-1],
                     data['Mesure 4'][timecode-1], data['Mesure 5'][timecode-1]]
 
-    heatmap_data = np.zeros((50, 50))
-    heatmap_data[5, 5] = first_values[0]
-    heatmap_data[5, 45] = first_values[1]
-    heatmap_data[25, 25] = first_values[2]
-    heatmap_data[45, 5] = first_values[3]
-    heatmap_data[45, 45] = first_values[4]
+    heatmap_data = np.zeros((7, 7))
+    heatmap_data[1, 1] = first_values[0]
+    heatmap_data[5, 1] = first_values[1]
+    heatmap_data[3, 3] = first_values[2]
+    heatmap_data[1, 5] = first_values[3]
+    heatmap_data[5, 5] = first_values[4]
+
+    # Define a function to get the average of adjacent points
+    def get_average(x, y):
+        neighbors = [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]
+        valid_neighbors = [(i, j) for i, j in neighbors if 0 <= i < 7 and 0 <= j < 7]
+        values = [heatmap_data[i, j] for i, j in valid_neighbors]
+        return np.mean(values) if values else 0
+
+    # Fill in undefined points with the average of adjacent points
+    for i in range(7):
+        for j in range(7):
+            if heatmap_data[i, j] == 0:
+                heatmap_data[i, j] = get_average(i, j)
 
     ax.clear()
     im = ax.imshow(heatmap_data, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
@@ -121,10 +137,14 @@ def next_timecode():
 
 # Bouton play/pause
 def toggle_play():
+    global playing
     current_value = slider.get()
-    if current_value < len(data['Timecode']):
+
+    if playing and current_value < len(data['Timecode']):
         slider.set(current_value + 1)
         tab4.after(1000, toggle_play)  # Change timecode every 1000 milliseconds (1 second)
+    else:
+        playing = False
 
 
 def toggle_restart():
@@ -167,11 +187,14 @@ tab_contents = []
 # Onglet 3 (contenant le graphique)
 tab3 = tabs[2]
 
-show_graph(data)  # Affichez le graphique dans l'onglet 1
+# Create canvas
+canvas2 = FigureCanvasTkAgg(show_graph(data), master=tab3)
+canvas_widget = canvas2.get_tk_widget()
+canvas_widget.pack(side=tk.TOP, fill=tk.BOTH, expand=True)  # Ensure canvas expands to fill the available space
 
 # Contenu pour l'onglet 2
 tab2 = tabs[1]
-show_table(data)  # Affichez le graphique dans l'onglet 1
+show_table(data)  # Affichez le graphique dans l'onglet 2
 
 # Contenu pour l'onglet 1
 tab1 = tabs[0]
@@ -190,7 +213,7 @@ time_slider_label.pack(pady=10)
 time_slider = tk.Scale(tab1, from_=1, to=180, orient="horizontal", length=300)
 time_slider.pack()
 
-# Ajout du bouton pour démarrer la mesure
+# Ajout du bouton pour démarrer la mesure Ajouter la logique dedans
 start_button = tk.Button(tab1, text="Démarrer la mesure", bg="green", fg="white", font=("Arial", 20, "bold"))
 start_button.pack(pady=20)
 
@@ -200,37 +223,52 @@ start_button.pack(pady=20)
 # Onglet 4 (contenant la heatmap)
 tab4 = tabs[3]
 
-fig = Figure(figsize=(5, 4), dpi=100)
+fig = Figure(figsize=(8, 6), dpi=100)
 ax = fig.add_subplot(111)
 
+# Create canvas
 canvas = FigureCanvasTkAgg(fig, master=tab4)
-canvas.get_tk_widget().pack()
+canvas_widget = canvas.get_tk_widget()
+canvas_widget.grid(row=0, column=0, columnspan=5, sticky=tk.NSEW)  # Ensure canvas expands to fill the available space
 
 # Initialisation de la colorbar
-heatmap_data = np.zeros((3, 3))
+heatmap_data = np.zeros((50, 50))
 im = ax.imshow(heatmap_data, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
 colorbar = fig.colorbar(im, ax=ax)
 colorbar.ax.set_ylabel('Mesures')
 
 # Curseur pour faire défiler les valeurs du timecode
 slider = tk.Scale(tab4, from_=1, to=len(data['Timecode']), orient="horizontal", command=lambda value: show_heatmap_on_tab4(int(value), ax, data))
-slider.pack(side=tk.TOP)
+slider.grid(row=1, column=0, columnspan=5, sticky=tk.NSEW)
 
 # Bp next et prev play pause
 restart_button = ttk.Button(tab4, text="<<", command=toggle_restart)
-restart_button.pack(side=tk.LEFT)
-
 prev_button = ttk.Button(tab4, text="Précédent", command=prev_timecode)
-prev_button.pack(side=tk.LEFT)
-
-play_button = ttk.Button(tab4, text="Play", command=toggle_play)
-play_button.pack(side=tk.LEFT)
-
+play_button = ttk.Button(tab4, text="Play/Pause", command=toggle_play)
 next_button = ttk.Button(tab4, text="Suivant", command=next_timecode)
-next_button.pack(side=tk.LEFT)
-
 end_button = ttk.Button(tab4, text=">>", command=toggle_end)
-end_button.pack(side=tk.LEFT)
+
+# Grid buttons side by side
+restart_button.grid(row=2, column=0, sticky=tk.W)
+prev_button.grid(row=2, column=1, sticky=tk.W)
+play_button.grid(row=2, column=2, sticky=tk.W)
+next_button.grid(row=2, column=3, sticky=tk.W)
+end_button.grid(row=2, column=4, sticky=tk.W)
+
+# Center the buttons
+tab4.update_idletasks()
+button_width = max(restart_button.winfo_width(), prev_button.winfo_width(), play_button.winfo_width(), next_button.winfo_width(), end_button.winfo_width())
+canvas_widget.config(width=button_width)  # Adjust canvas width to match button width
+
+# Configure row and column weights
+tab4.rowconfigure(0, weight=1)
+tab4.rowconfigure(1, weight=1)
+tab4.rowconfigure(2, weight=1)
+tab4.columnconfigure(0, weight=1)
+tab4.columnconfigure(1, weight=1)
+tab4.columnconfigure(2, weight=1)
+tab4.columnconfigure(3, weight=1)
+tab4.columnconfigure(4, weight=1)
 
 # Associez la fonction on_tab_change à l'événement de changement d'onglet
 notebook.bind("<<NotebookTabChanged>>", on_tab_change)
