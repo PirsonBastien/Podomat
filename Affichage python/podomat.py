@@ -20,10 +20,10 @@ ax = None
 data = {
             'Timecode': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
             'Mesure 1': [2, 4, 6, 8, 10, 14, 25, 49, 34, 24],
-            'Mesure 2': [1, 3, 5, 7, 9, 32, 14, 25, 49, 34],
+            'Mesure 2': [1, 3, 5, 7, 9, 32, 16, 28, 52, 48],
             'Mesure 3': [3, 6, 9, 12, 15, 2, 14, 25, 49, 34],
-            'Mesure 4': [4, 8, 12, 16, 20, 18, 14, 25, 49, 34],
-            'Mesure 5': [5, 10, 15, 20, 25, 42, 14, 25, 49, 34]
+            'Mesure 4': [4, 8, 12, 16, 20, 18, 10, 20, 40, 28],
+            'Mesure 5': [5, 10, 15, 20, 25, 42, 71, 29, 53, 36]
         }
 
 max_value = max(max(data['Mesure 1']), max(data['Mesure 2']), max(data['Mesure 3']), max(data['Mesure 4']), max(data['Mesure 5']))
@@ -184,25 +184,14 @@ notebook.pack(fill="both", expand=True)
 # Liste des contenus pour chaque onglet
 tab_contents = []
 
-# Onglet 3 (contenant le graphique)
-tab3 = tabs[2]
-
-# Create canvas
-canvas2 = FigureCanvasTkAgg(show_graph(data), master=tab3)
-canvas_widget = canvas2.get_tk_widget()
-canvas_widget.pack(side=tk.TOP, fill=tk.BOTH, expand=True)  # Ensure canvas expands to fill the available space
-
-# Contenu pour l'onglet 2
-tab2 = tabs[1]
-show_table(data)  # Affichez le graphique dans l'onglet 2
 
 # Contenu pour l'onglet 1
 tab1 = tabs[0]
-# Bouton d'exportation dans l'onglet 1
+# Bouton d'exportation
 export_button = ttk.Button(tab1, text="Exporter en CSV", command=export_to_csv)
 export_button.pack(pady=10)
 
-# Bouton d'importation dans l'onglet 3
+# Bouton d'importation
 import_button = ttk.Button(tab1, text="Importer depuis CSV", command=import_from_csv)
 import_button.pack(pady=10)
 
@@ -216,8 +205,21 @@ time_slider.pack()
 # Ajout du bouton pour démarrer la mesure Ajouter la logique dedans
 start_button = tk.Button(tab1, text="Démarrer la mesure", bg="green", fg="white", font=("Arial", 20, "bold"))
 start_button.pack(pady=20)
-
 # Ajout nécessaire de connexion pour le portenta dans l'onglet 1
+
+
+# Contenu pour l'onglet 2
+tab2 = tabs[1]
+show_table(data)  # Affichez le graphique dans l'onglet 2
+
+
+# Onglet 3 (contenant le graphique)
+tab3 = tabs[2]
+
+# Create canvas
+canvas2 = FigureCanvasTkAgg(show_graph(data), master=tab3)
+canvas_widget = canvas2.get_tk_widget()
+canvas_widget.pack(side=tk.TOP, fill=tk.BOTH, expand=True)  # Ensure canvas expands to fill the available space
 
 
 # Onglet 4 (contenant la heatmap)
