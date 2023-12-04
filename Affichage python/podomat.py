@@ -18,12 +18,12 @@ playing = True
 ax = None
 # Déclaration de la variable globale pour tableau de mesure
 data = {
-            'Timecode': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-            'Mesure 1': [2, 4, 6, 8, 10, 14, 25, 49, 34, 24],
-            'Mesure 2': [1, 3, 5, 7, 9, 32, 16, 28, 52, 48],
-            'Mesure 3': [3, 6, 9, 12, 15, 2, 14, 25, 49, 34],
-            'Mesure 4': [4, 8, 12, 16, 20, 18, 10, 20, 40, 28],
-            'Mesure 5': [5, 10, 15, 20, 25, 42, 71, 29, 53, 36]
+        'Timecode': np.arange(1, 101),
+        'Mesure 1': np.random.randint(0, 50, 100),
+        'Mesure 2': np.random.randint(0, 50, 100),
+        'Mesure 3': np.random.randint(0, 50, 100),
+        'Mesure 4': np.random.randint(0, 50, 100),
+        'Mesure 5': np.random.randint(0, 50, 100)
         }
 
 max_value = max(max(data['Mesure 1']), max(data['Mesure 2']), max(data['Mesure 3']), max(data['Mesure 4']), max(data['Mesure 5']))
@@ -47,16 +47,29 @@ def show_graph(data):
     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
 
-# Fonction pour afficher le tableau de données
-def show_table(data):
+# Fonction pour afficher le tableau de données avec une barre de défilement
+def show_table_with_scrollbar(data):
+    # Création du cadre pour contenir le tableau et la barre de défilement
+    frame = ttk.Frame(tab2)
+    frame.pack(fill='both', expand=True)
 
-    tree = ttk.Treeview(tab2, columns=tuple(data.keys()), show='headings')
+    # Création du tableau avec les en-têtes
+    tree = ttk.Treeview(frame, columns=tuple(data.keys()), show='headings')
     for col in data.keys():
         tree.heading(col, text=col)
         tree.column(col, width=100)
+
+    # Ajout des données dans le tableau
     for i in range(len(data['Timecode'])):
         tree.insert('', 'end', values=tuple([data[col][i] for col in data.keys()]))
-    tree.pack(fill='both', expand=True)
+
+    # Configuration de la barre de défilement
+    scrollbar = ttk.Scrollbar(frame, orient='vertical', command=tree.yview)
+    tree.configure(yscroll=scrollbar.set)
+
+    # Placement du tableau et de la barre de défilement
+    tree.pack(side=tk.LEFT, fill='both', expand=True)
+    scrollbar.pack(side=tk.RIGHT, fill='y')
 
 
 # Fonction pour importer les données au format CSV
@@ -210,7 +223,7 @@ start_button.pack(pady=20)
 
 # Contenu pour l'onglet 2
 tab2 = tabs[1]
-show_table(data)  # Affichez le graphique dans l'onglet 2
+show_table_with_scrollbar(data)  # Affichez le graphique dans l'onglet 2
 
 
 # Onglet 3 (contenant le graphique)
