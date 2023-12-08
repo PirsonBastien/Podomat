@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, filedialog
 from typing import Dict, List
-
 import canvas
 import pandas as pd
 import numpy as np
@@ -11,6 +10,8 @@ from matplotlib.path import Path
 from matplotlib import patches
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import seaborn as sns
+import serial.tools.list_ports
+
 
 # Déclaration de la variable globale pour bp play/pause
 playing = True
@@ -18,33 +19,128 @@ playing = True
 ax = None
 # Déclaration de la variable globale pour tableau de mesure
 data = {
-        'Timecode': np.arange(1, 101),
-        'Mesure 1': np.random.randint(0, 50, 100),
-        'Mesure 2': np.random.randint(0, 50, 100),
-        'Mesure 3': np.random.randint(0, 50, 100),
-        'Mesure 4': np.random.randint(0, 50, 100),
-        'Mesure 5': np.random.randint(0, 50, 100)
-        }
+    'Capteur 1': np.random.randint(0, 50, 100),
+    'Capteur 2': np.random.randint(0, 50, 100),
+    'Capteur 3': np.random.randint(0, 50, 100),
+    'Capteur 4': np.random.randint(0, 50, 100),
+    'Capteur 5': np.random.randint(0, 50, 100),
+    'Timecode': np.arange(1, 101)
+}
 
-max_value = max(max(data['Mesure 1']), max(data['Mesure 2']), max(data['Mesure 3']), max(data['Mesure 4']), max(data['Mesure 5']))
+max_value = max(max(data['Capteur 1']), max(data['Capteur 2']), max(data['Capteur 3']), max(data['Capteur 4']),
+                max(data['Capteur 5']))
+
+
+# Trouve le port sur lequel est connecté le portenta
+def trouver_port_arduino_portenta():
+    ports = serial.tools.list_ports.comports()
+    for port in ports:
+        if "portenta" in port.description:
+            return port.device
+    return None
+
+
+# Permet l'autocalibration des capteurs
+def calib():
+    port = trouver_port_arduino_portenta()
+    baud_rate = 9600
+
+    ser = serial.Serial(port, baud_rate, timeout=1)
+    print(f"Connexion établie sur {port} à {baud_rate} bps")
+    # Quand le portenta reçoit le signal c passe en calibration
+    message = "c"
+    ser.write(message.encode())
+    ref = 1000
+
+    num_capteurs = 5
+    capt = [0] * num_capteurs
+    pot = [0] * num_capteurs
+
+# boucle qui permet d'ajuster les valeurs de potentiomètre
+# le portenta recoit le numéro du capteur puis doit envoyer la valeur du capt ensuite il recoit la valeur ajuster du potentiometer
+    for i in range(num_capteurs):
+        while capt[i] != ref:
+            ser.write(str(i).encode())
+            capt[i] = int(ser.readline().decode('utf-8').strip())
+
+            if capt[i] < ref and pot[i] < 255:
+                pot[i] += 1
+                ser.write(str(pot[i]).encode())
+            elif capt[i] > ref and pot[i] > 0:
+                pot[i] -= 1
+                ser.write(str(pot[i]).encode())
+            elif capt[i] < ref and pot[i] == 255:
+                print(f"Erreur de calibration sur le capteur {i + 1}")
+                break
+            elif capt[i] > ref and pot[i] == 0:
+                print(f"Erreur de calibration sur le capteur {i + 1}")
+                break
+
+
+# Envoie les donnée vers le portenta
+def serie():
+    port = trouver_port_arduino_portenta()
+    baud_rate = 9600
+    try:
+        ser = serial.Serial(port, baud_rate, timeout=1)
+        print(f"Connexion établie sur {port} à {baud_rate} bps")
+        message = "1"
+        ser.write(message.encode())
+        nombre_ligne = 0
+        while nombre_ligne == 0:
+
+            nombre_ligne = ser.readline().decode('utf-8').strip()
+            nombre_colonne = ser.readline().decode('utf-8').strip()
+            print(f"NB ligne: {nombre_ligne}")
+            print(f"NB colonne: {nombre_colonne}")
+            ligne = int(nombre_ligne)
+            colonne = int(nombre_colonne)
+
+            while ligne != 0:
+                for i in range(colonne):
+                    valeur = ser.readline().decode('utf-8').rstrip()
+                    print(f"Données reçues: {valeur}")
+                    tk.Label(fenetre, text=valeur).grid(column=10, row=8)
+                ligne = ligne - 1
+            ser.close()
+            break
+
+
+    except serial.SerialException as e:
+        print(f"Erreur lors de l'ouverture du port série : {e}")
+
+
+# Fonction pour mettre à jour le graphique en fonction des cases cochées
+def update_plot():
+    selected_measures = [measure for measure, var in zip(data.keys(), measure_checkbuttons) if var.get()]
+    if any(selected_measures):
+        show_graph(selected_measures)
+        canvas3.draw()
+    else:
+        # Si aucune case n'est cochée, effacez le graphique
+        ax3.clear()
+        ax3.set_title('Pas de capteur sélectionné')
+        canvas3.draw()
+
 
 # Fonction pour créer et afficher le graphique
-def show_graph(data):
-    timecode = data['Timecode']
-    fig, ax = plt.subplots()
+def show_graph(selected_measures):
+    ax3.clear()
 
-    for key, value in data.items():
-        if key != 'Timecode':
-            ax.plot(timecode, value, label=key, marker='o')
+    plotted = False  # Variable pour vérifier si au moins une mesure est tracée
 
-    ax.set_xlabel('Timecode')
-    ax.set_ylabel('Mesures')
-    ax.set_title('Graphique de Mesures pour Différents Timecodes')
-    ax.legend()
+    for measure in selected_measures:
+        if measure in data and data[measure] is not None:
+            ax3.plot(data['Timecode'], data[measure], label=measure)
+            plotted = True
 
-    canvas = FigureCanvasTkAgg(fig, master=tab3)
-    canvas.draw()
-    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+    if plotted:
+        ax3.legend()
+        ax3.set_xlabel('Timecode [ms]')
+        ax3.set_ylabel('Pression [N]')
+        ax3.set_title('Graphique de mesure')
+    else:
+        ax3.set_title('Pas de capteur sélectionné')
 
 
 # Fonction pour afficher le tableau de données avec une barre de défilement
@@ -99,15 +195,15 @@ def on_tab_change(event):
 
 
 # Fonction pour créer et afficher la heatmap
-def show_heatmap_on_tab4(timecode_value, ax, data):
-    update_heatmap(timecode_value, ax, data)
+def show_heatmap_on_tab4(timecode_value, ax4, data):
+    update_heatmap(timecode_value, ax4, data)
 
 
 # Fonction pour mettre à jour la heatmap en fonction du timecode sélectionné
-def update_heatmap(timecode_value, ax, data):
+def update_heatmap(timecode_value, ax4, data):
     timecode = int(timecode_value)
-    first_values = [data['Mesure 1'][timecode-1], data['Mesure 2'][timecode-1], data['Mesure 3'][timecode-1],
-                    data['Mesure 4'][timecode-1], data['Mesure 5'][timecode-1]]
+    first_values = [data['Capteur 1'][timecode - 1], data['Capteur 2'][timecode - 1], data['Capteur 3'][timecode - 1],
+                    data['Capteur 4'][timecode - 1], data['Capteur 5'][timecode - 1]]
 
     heatmap_data = np.zeros((7, 7))
     heatmap_data[1, 1] = first_values[0]
@@ -129,10 +225,10 @@ def update_heatmap(timecode_value, ax, data):
             if heatmap_data[i, j] == 0:
                 heatmap_data[i, j] = get_average(i, j)
 
-    ax.clear()
-    im = ax.imshow(heatmap_data, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
+    ax4.clear()
+    im = ax4.imshow(heatmap_data, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
     colorbar.update_normal(im)
-    canvas.draw()
+    canvas4.draw()
 
 
 # Boutons pour faire défiler les timecodes
@@ -168,6 +264,16 @@ def toggle_end():
     slider.set(len(data['Timecode']))
 
 
+def show_loading_popup():
+    loading_popup = tk.Toplevel(root)
+    loading_popup.title("mesure en cours")
+    loading_label = tk.Label(loading_popup, text="Veuillez attendre la fin de la mesure avant d'intéragir avec l'interface ...")
+    loading_label.pack()
+
+    # Fermez la fenêtre de chargement après un certain temps (par exemple, 3000 millisecondes)
+    loading_popup.after(25000, loading_popup.destroy)
+
+
 # Créez une fenêtre principale
 root = tk.Tk()
 root.title("Podomat")
@@ -197,63 +303,75 @@ notebook.pack(fill="both", expand=True)
 # Liste des contenus pour chaque onglet
 tab_contents = []
 
-
 # Contenu pour l'onglet 1
 tab1 = tabs[0]
 # Bouton d'exportation
-export_button = ttk.Button(tab1, text="Exporter en CSV", command=export_to_csv)
+export_button = ttk.Button(tab1, text="Exporter en CSV", command=lambda: export_to_csv(data))
 export_button.pack(pady=10)
 
 # Bouton d'importation
-import_button = ttk.Button(tab1, text="Importer depuis CSV", command=import_from_csv)
+import_button = ttk.Button(tab1, text="Importer depuis CSV",  command=lambda: import_from_csv())
 import_button.pack(pady=10)
 
 # Ajout du slider pour régler le temps de mesure
-time_slider_label = tk.Label(tab1, text="Réglage temps de mesure")
+time_slider_label = tk.Label(tab1, text="Nombre de mesure désiré :")
 time_slider_label.pack(pady=10)
 
 time_slider = tk.Scale(tab1, from_=1, to=180, orient="horizontal", length=300)
 time_slider.pack()
+valeur_du_curseur = time_slider.get()
 
-# Ajout du bouton pour démarrer la mesure Ajouter la logique dedans
-start_button = tk.Button(tab1, text="Démarrer la mesure", bg="green", fg="white", font=("Arial", 20, "bold"))
+start_button = tk.Button(tab1, text="Démarrer la mesure", bg="green", fg="white", font=("Arial", 20, "bold"),command=lambda: [show_loading_popup(), serie()])
 start_button.pack(pady=20)
 # Ajout nécessaire de connexion pour le portenta dans l'onglet 1
 
+Calib_button = tk.Button(tab1, text="Autocalibration", bg="green", fg="white", font=("Arial", 20, "bold"),command=lambda: [calib()])
+Calib_button.pack(pady=20)
 
 # Contenu pour l'onglet 2
 tab2 = tabs[1]
 show_table_with_scrollbar(data)  # Affichez le graphique dans l'onglet 2
 
-
 # Onglet 3 (contenant le graphique)
 tab3 = tabs[2]
 
-# Create canvas
-canvas2 = FigureCanvasTkAgg(show_graph(data), master=tab3)
-canvas_widget = canvas2.get_tk_widget()
-canvas_widget.pack(side=tk.TOP, fill=tk.BOTH, expand=True)  # Ensure canvas expands to fill the available space
+# Création d'une liste pour stocker les variables des cases à cocher
+measure_checkbuttons = []
 
+# Ajout des cases à cocher pour chaque mesure
+for i, measure in enumerate(data.keys()):
+    if measure != 'Timecode':
+        var = tk.IntVar()
+        check_button = tk.Checkbutton(tab3, text=measure, variable=var, command=update_plot)
+        check_button.grid(row=i, column=0, sticky=tk.W)
+        measure_checkbuttons.append(var)
+
+# Création du graphique initial (vide)
+fig3 = Figure(figsize=(16, 9), dpi=100)
+ax3 = fig3.add_subplot(111)
+canvas3 = FigureCanvasTkAgg(fig3, master=tab3)
+canvas3.get_tk_widget().grid(row=0, column=1, rowspan=len(data) - 1, sticky=tk.W + tk.E + tk.N + tk.S)
 
 # Onglet 4 (contenant la heatmap)
 tab4 = tabs[3]
 
-fig = Figure(figsize=(8, 6), dpi=100)
-ax = fig.add_subplot(111)
+fig4 = Figure(figsize=(8, 6), dpi=100)
+ax4_heatmap = fig4.add_subplot(111)
 
 # Create canvas
-canvas = FigureCanvasTkAgg(fig, master=tab4)
-canvas_widget = canvas.get_tk_widget()
+canvas4 = FigureCanvasTkAgg(fig4, master=tab4)
+canvas_widget = canvas4.get_tk_widget()
 canvas_widget.grid(row=0, column=0, columnspan=5, sticky=tk.NSEW)  # Ensure canvas expands to fill the available space
 
 # Initialisation de la colorbar
 heatmap_data = np.zeros((50, 50))
-im = ax.imshow(heatmap_data, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
-colorbar = fig.colorbar(im, ax=ax)
-colorbar.ax.set_ylabel('Mesures')
+im = ax4_heatmap.imshow(heatmap_data, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
+colorbar = fig4.colorbar(im, ax=ax4_heatmap)
+colorbar.ax.set_ylabel('Pression [N]')
 
 # Curseur pour faire défiler les valeurs du timecode
-slider = tk.Scale(tab4, from_=1, to=len(data['Timecode']), orient="horizontal", command=lambda value: show_heatmap_on_tab4(int(value), ax, data))
+slider = tk.Scale(tab4, from_=1, to=len(data['Timecode']), orient="horizontal",
+                  command=lambda value: show_heatmap_on_tab4(int(value), ax4_heatmap, data))
 slider.grid(row=1, column=0, columnspan=5, sticky=tk.NSEW)
 
 # Bp next et prev play pause
@@ -272,7 +390,8 @@ end_button.grid(row=2, column=4, sticky=tk.W)
 
 # Center the buttons
 tab4.update_idletasks()
-button_width = max(restart_button.winfo_width(), prev_button.winfo_width(), play_button.winfo_width(), next_button.winfo_width(), end_button.winfo_width())
+button_width = max(restart_button.winfo_width(), prev_button.winfo_width(), play_button.winfo_width(),
+                   next_button.winfo_width(), end_button.winfo_width())
 canvas_widget.config(width=button_width)  # Adjust canvas width to match button width
 
 # Configure row and column weights
