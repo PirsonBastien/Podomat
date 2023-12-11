@@ -12,7 +12,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import seaborn as sns
 import serial.tools.list_ports
 
-
 # Déclaration de la variable globale pour bp play/pause
 playing = True
 # Déclaration de la variable globale pour ax
@@ -46,7 +45,10 @@ def calib():
     baud_rate = 9600
 
     ser = serial.Serial(port, baud_rate, timeout=1)
-    print(f"Connexion établie sur {port} à {baud_rate} bps")
+    if port is None:
+        calib_messages.insert(tk.END, "Pas d'appareil connecté, calibration annulée\n")
+    else:
+        calib_messages.insert(tk.END, f"Connexion établie sur {port} à {baud_rate} bps\n")
     # Quand le portenta reçoit le signal c passe en calibration
     message = "c"
     ser.write(message.encode())
@@ -70,10 +72,10 @@ def calib():
                 pot[i] -= 1
                 ser.write(str(pot[i]).encode())
             elif capt[i] < ref and pot[i] == 255:
-                print(f"Erreur de calibration sur le capteur {i + 1}")
+                calib_messages.insert(tk.END, f"Erreur de calibration sur le capteur {i + 1}\n")
                 break
             elif capt[i] > ref and pot[i] == 0:
-                print(f"Erreur de calibration sur le capteur {i + 1}")
+                calib_messages.insert(tk.END, f"Erreur de calibration sur le capteur {i + 1}\n")
                 break
 
 
@@ -168,13 +170,30 @@ def show_table_with_scrollbar(data):
     scrollbar.pack(side=tk.RIGHT, fill='y')
 
 
-# Fonction pour importer les données au format CSV
+def update_table(tree, data):
+    # Effacez les anciennes entrées dans le tableau
+    for item in tree.get_children():
+        tree.delete(item)
+
+    # Ajoutez les nouvelles données dans le tableau
+    for i in range(len(data['Timecode'])):
+        tree.insert('', 'end', values=tuple([data[col][i] for col in data.keys()]))
+
+
+# Fonction pour importer les données au format CSV et remplacer les données existantes
 def import_from_csv():
     global data
     file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
     if file_path:
-        df = pd.read_csv(file_path)
-        data = df.to_dict(orient='list')
+        df = pd.read_csv(file_path, sep=';')  # Assurez-vous de spécifier le bon séparateur
+        new_data = df.to_dict(orient='list')
+
+        # Mettez à jour le dictionnaire data avec les nouvelles données
+        for key, value in new_data.items():
+            data[key] = value
+
+        # Mettez à jour le tableau avec les nouvelles données
+        update_table(tree, data)
 
 
 # Fonction pour exporter les données au format CSV
@@ -182,7 +201,7 @@ def export_to_csv(data):
     file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
     if file_path:
         df = pd.DataFrame(data)
-        df.to_csv(file_path, index=False)
+        df.to_csv(file_path, index=False, sep=';')  # Ajout du paramètre sep=';'
 
 
 # Fonction appelée lorsque l'onglet est changé
@@ -305,6 +324,36 @@ tab_contents = []
 
 # Contenu pour l'onglet 1
 tab1 = tabs[0]
+
+# Création de la zone pour afficher les messages de la console
+connect_messages = tk.Text(tab1, height=1, width=50)
+connect_messages.pack(pady=10)
+port = trouver_port_arduino_portenta()
+if port != None:
+    connect_messages.insert(tk.END, "Votre appareil est bien connecté\n")
+else:
+    connect_messages.delete('1.0', tk.END)
+    connect_messages.insert(tk.END, "Votre appareil est déconnecté\n")
+
+# Ajout du slider pour régler le temps de mesure
+time_slider_label = tk.Label(tab1, text="Nombre de mesure désiré :")
+time_slider_label.pack(pady=2)
+
+time_slider = tk.Scale(tab1, from_=1, to=180, orient="horizontal", length=300)
+time_slider.pack()
+valeur_du_curseur = time_slider.get()
+
+# Ajout de la zone pour le poids de l'utilisateur
+weight_label = tk.Label(tab1, text="Poids de l'utilisateur en kg:")
+weight_label.pack(pady=10)
+
+weight_entry = tk.Entry(tab1)
+weight_entry.pack(pady=10)
+
+start_button = tk.Button(tab1, text="Démarrer la mesure", bg="green", fg="white", font=("Arial", 20, "bold"),command=lambda: [show_loading_popup(), serie()])
+start_button.pack(pady=20)
+# Ajout nécessaire de connexion pour le portenta dans l'onglet 1
+
 # Bouton d'exportation
 export_button = ttk.Button(tab1, text="Exporter en CSV", command=lambda: export_to_csv(data))
 export_button.pack(pady=10)
@@ -312,25 +361,35 @@ export_button.pack(pady=10)
 # Bouton d'importation
 import_button = ttk.Button(tab1, text="Importer depuis CSV",  command=lambda: import_from_csv())
 import_button.pack(pady=10)
-
-# Ajout du slider pour régler le temps de mesure
-time_slider_label = tk.Label(tab1, text="Nombre de mesure désiré :")
-time_slider_label.pack(pady=10)
-
-time_slider = tk.Scale(tab1, from_=1, to=180, orient="horizontal", length=300)
-time_slider.pack()
-valeur_du_curseur = time_slider.get()
-
-start_button = tk.Button(tab1, text="Démarrer la mesure", bg="green", fg="white", font=("Arial", 20, "bold"),command=lambda: [show_loading_popup(), serie()])
-start_button.pack(pady=20)
-# Ajout nécessaire de connexion pour le portenta dans l'onglet 1
-
 Calib_button = tk.Button(tab1, text="Autocalibration", bg="green", fg="white", font=("Arial", 20, "bold"),command=lambda: [calib()])
 Calib_button.pack(pady=20)
 
+calib_messages = tk.Text(tab1, height=6, width=50)
+calib_messages.pack(pady=10)
+
 # Contenu pour l'onglet 2
 tab2 = tabs[1]
-show_table_with_scrollbar(data)  # Affichez le graphique dans l'onglet 2
+# Création du cadre pour contenir le tableau et la barre de défilement
+frame = ttk.Frame(tab2)
+frame.pack(fill='both', expand=True)
+
+# Création du tableau avec les en-têtes
+tree = ttk.Treeview(frame, columns=tuple(data.keys()), show='headings')
+for col in data.keys():
+    tree.heading(col, text=col)
+    tree.column(col, width=100)
+
+# Ajout des données dans le tableau
+for i in range(len(data['Timecode'])):
+    tree.insert('', 'end', values=tuple([data[col][i] for col in data.keys()]))
+
+# Configuration de la barre de défilement
+scrollbar = ttk.Scrollbar(frame, orient='vertical', command=tree.yview)
+tree.configure(yscroll=scrollbar.set)
+
+# Placement du tableau et de la barre de défilement
+tree.pack(side=tk.LEFT, fill='both', expand=True)
+scrollbar.pack(side=tk.RIGHT, fill='y')
 
 # Onglet 3 (contenant le graphique)
 tab3 = tabs[2]
@@ -381,20 +440,20 @@ play_button = ttk.Button(tab4, text="Play/Pause", command=toggle_play)
 next_button = ttk.Button(tab4, text="Suivant", command=next_timecode)
 end_button = ttk.Button(tab4, text=">>", command=toggle_end)
 
-# Grid buttons side by side
+# Grille boutons côte à côte
 restart_button.grid(row=2, column=0, sticky=tk.W)
 prev_button.grid(row=2, column=1, sticky=tk.W)
 play_button.grid(row=2, column=2, sticky=tk.W)
 next_button.grid(row=2, column=3, sticky=tk.W)
 end_button.grid(row=2, column=4, sticky=tk.W)
 
-# Center the buttons
+# Centrer les boutons
 tab4.update_idletasks()
 button_width = max(restart_button.winfo_width(), prev_button.winfo_width(), play_button.winfo_width(),
                    next_button.winfo_width(), end_button.winfo_width())
 canvas_widget.config(width=button_width)  # Adjust canvas width to match button width
 
-# Configure row and column weights
+# Configure les lignes et les colonnes
 tab4.rowconfigure(0, weight=1)
 tab4.rowconfigure(1, weight=1)
 tab4.rowconfigure(2, weight=1)
