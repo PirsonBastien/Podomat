@@ -16,18 +16,22 @@ import serial.tools.list_ports
 playing = True
 # Déclaration de la variable globale pour ax
 ax = None
-# Déclaration de la variable globale pour tableau de mesure
-data = {
-    'Capteur 1': np.random.randint(0, 50, 100),
-    'Capteur 2': np.random.randint(0, 50, 100),
-    'Capteur 3': np.random.randint(0, 50, 100),
-    'Capteur 4': np.random.randint(0, 50, 100),
-    'Capteur 5': np.random.randint(0, 50, 100),
-    'Timecode': np.arange(1, 101)
+
+# Variable des potentiomètre
+Resistance_pot = [128, 128, 128, 128, 128, 128, 128, 128]
+
+# Déclaration et initialisation du tableau
+tableau = {
+        'Capteur 1': [0, 0, 0],
+        'Capteur 2': [0, 0, 0],
+        'Capteur 3': [0, 0, 0],
+        'Capteur 4': [0, 0, 0],
+        'Capteur 5': [0, 0, 0],
+        'Timecode': [1, 2, 3]
 }
 
-max_value = max(max(data['Capteur 1']), max(data['Capteur 2']), max(data['Capteur 3']), max(data['Capteur 4']),
-                max(data['Capteur 5']))
+max_value = max(max(tableau['Capteur 1']), max(tableau['Capteur 2']), max(tableau['Capteur 3']), max(tableau['Capteur 4']),
+                max(tableau['Capteur 5']))
 
 
 # Trouve le port sur lequel est connecté le portenta
@@ -49,27 +53,108 @@ def calib():
         calib_messages.insert(tk.END, "Pas d'appareil connecté, calibration annulée\n")
     else:
         calib_messages.insert(tk.END, f"Connexion établie sur {port} à {baud_rate} bps\n")
-    # Quand le portenta reçoit le signal c passe en calibration
-    message = "c"
+
+        # Déclaration et initialisation du tableau
+    temp_tab = {
+        'Capteur 1': [],
+        'Capteur 2': [],
+        'Capteur 3': [],
+        'Capteur 4': [],
+        'Capteur 5': [],
+    }
+
+    nb_mesure = 5
+
+    # Envoi du nombre de de cycle
+    nb_mesure_string = str(nb_mesure) + '\n'
+    ser.write(nb_mesure_string.encode('utf-8'))
+
+    # Envoi des resistance des pot
+    for R in Resistance_pot:
+        Resistance_pot_string = str(R) + '\n'
+        ser.write(Resistance_pot_string.encode('utf-8'))
+
     ser.write(message.encode())
     ref = 1000
-
+    nb_donnee_reception_tableau = 0
+    nb_cycle_reception_tableau = 0
     num_capteurs = 5
     capt = [0] * num_capteurs
     pot = [0] * num_capteurs
 
 # boucle qui permet d'ajuster les valeurs de potentiomètre
 # le portenta recoit le numéro du capteur puis doit envoyer la valeur du capt ensuite il recoit la valeur ajuster du potentiometer
+    while Val_etape < 8:
+        Data = ser.readline().decode('utf-8').strip()
+        if Val_etape == 1 and Data == 'Reception données fin':
+            Etape = Data
+            Data = 0
+            print(Etape)
+            calib_messages.insert(tk.END, Etape + '\n')
+            Val_etape += 1
+        elif Val_etape == 2 and Data == 'Reglage pot ok':
+            Etape = Data
+            Data = 0
+            print(Etape)
+            calib_messages.insert(tk.END, Etape + '\n')
+            Val_etape += 1
+        elif Val_etape == 3 and Data == 'Acquisition ok':
+            Etape = Data
+            Data = 0
+            print(Etape)
+            calib_messages.insert(tk.END, Etape + '\n')
+            Val_etape += 1
+        elif Val_etape == 4 and Data == 'Envoi':
+            Etape = Data
+            Data = 0
+            print(Etape)
+            calib_messages.insert(tk.END, Etape + '\n')
+            Val_etape += 1
+        elif Val_etape == 5:
+            nombre_cycle_reception = int(Data)
+            Data = 0
+            print(nombre_cycle_reception)
+            Val_etape += 1
+        elif Val_etape == 6:
+            nombre_donnee_reception = int(Data)
+            Data = 0
+            print(nombre_donnee_reception)
+            Val_etape += 1
+        elif Val_etape == 7:
+            if (nb_donnee_reception_tableau < nb_cycle_reception_tableau and
+                    nb_donnee_reception_tableau < nombre_donnee_reception):
+                # Affecter les valeurs reçues aux capteurs correspondants
+                temp_tab['Capteur 1'].append(int(Data))
+                temp_tab['Capteur 2'].append(int(Data))
+                temp_tab['Capteur 3'].append(int(Data))
+                temp_tab['Capteur 4'].append(int(Data))
+                temp_tab['Capteur 5'].append(int(Data))
+
+                nb_donnee_reception_tableau += 1
+
+                if nb_donnee_reception_tableau == nombre_donnee_reception:
+                    nb_cycle_reception_tableau += 1
+                    nb_donnee_reception_tableau = 0
+            else:
+                Val_etape += 1
+                ser.close()
+
+    moyennes = {
+        'Capteur 1': np.mean(temp_tab['Capteur 1']),
+        'Capteur 2': np.mean(temp_tab['Capteur 2']),
+        'Capteur 3': np.mean(temp_tab['Capteur 3']),
+        'Capteur 4': np.mean(temp_tab['Capteur 4']),
+        'Capteur 5': np.mean(temp_tab['Capteur 5']),
+    }
+
     for i in range(num_capteurs):
         while capt[i] != ref:
-            ser.write(str(i).encode())
-            capt[i] = int(ser.readline().decode('utf-8').strip())
 
             if capt[i] < ref and pot[i] < 255:
-                pot[i] += 1
+                Resistance_pot[i] += 1
                 ser.write(str(pot[i]).encode())
             elif capt[i] > ref and pot[i] > 0:
-                pot[i] -= 1
+                Resistance_pot[i] -= 1
                 ser.write(str(pot[i]).encode())
             elif capt[i] < ref and pot[i] == 255:
                 calib_messages.insert(tk.END, f"Erreur de calibration sur le capteur {i + 1}\n")
@@ -81,40 +166,109 @@ def calib():
 
 # Envoie les donnée vers le portenta
 def serie():
+    clear_tableau()
     port = trouver_port_arduino_portenta()
     baud_rate = 9600
-    try:
-        ser = serial.Serial(port, baud_rate, timeout=1)
-        print(f"Connexion établie sur {port} à {baud_rate} bps")
-        message = "1"
-        ser.write(message.encode())
-        nombre_ligne = 0
-        while nombre_ligne == 0:
 
-            nombre_ligne = ser.readline().decode('utf-8').strip()
-            nombre_colonne = ser.readline().decode('utf-8').strip()
-            print(f"NB ligne: {nombre_ligne}")
-            print(f"NB colonne: {nombre_colonne}")
-            ligne = int(nombre_ligne)
-            colonne = int(nombre_colonne)
+    # Connection au port com => A enlever
+    ser = serial.Serial(port, baud_rate, timeout=1)
+    print(f"Connexion établie sur {port} à {baud_rate} bps")
 
-            while ligne != 0:
-                for i in range(colonne):
-                    valeur = ser.readline().decode('utf-8').rstrip()
-                    print(f"Données reçues: {valeur}")
-                    tk.Label(fenetre, text=valeur).grid(column=10, row=8)
-                ligne = ligne - 1
-            ser.close()
-            break
+    Val_etape = 1
+
+    # Envoi du nombre de de cycle
+    Nombre_cycle_string = str(Nombre_cycle) + '\n'
+    ser.write(Nombre_cycle_string.encode('utf-8'))
+
+    # Envoi des resistance des pot
+    for R in Resistance_pot:
+        Resistance_pot_string = str(R) + '\n'
+        ser.write(Resistance_pot_string.encode('utf-8'))
+
+    nombre_donnee_reception_tableau = 0
+    nombre_cycle_reception_tableau = 0
+    timestamp = 0
+
+    while Val_etape < 8:
+        Data = ser.readline().decode('utf-8').strip()
+        if Val_etape == 1 and Data == 'Reception données fin':
+            Etape = Data
+            Data = 0
+            print(Etape)
+            calib_messages.insert(tk.END, Etape + '\n')
+            Val_etape += 1
+        elif Val_etape == 2 and Data == 'Reglage pot ok':
+            Etape = Data
+            Data = 0
+            print(Etape)
+            calib_messages.insert(tk.END, Etape + '\n')
+            Val_etape += 1
+        elif Val_etape == 3 and Data == 'Acquisition ok':
+            Etape = Data
+            Data = 0
+            print(Etape)
+            calib_messages.insert(tk.END, Etape + '\n')
+            Val_etape += 1
+        elif Val_etape == 4 and Data == 'Envoi':
+            Etape = Data
+            Data = 0
+            print(Etape)
+            calib_messages.insert(tk.END, Etape + '\n')
+            Val_etape += 1
+        elif Val_etape == 5:
+            nombre_cycle_reception = int(Data)
+            Data = 0
+            print(nombre_cycle_reception)
+            Val_etape += 1
+        elif Val_etape == 6:
+            nombre_donnee_reception = int(Data)
+            Data = 0
+            print(nombre_donnee_reception)
+            Val_etape += 1
+        elif Val_etape == 7:
+            if (nombre_cycle_reception_tableau < nombre_cycle_reception and
+                    nombre_donnee_reception_tableau < nombre_donnee_reception):
+                # Affecter les valeurs reçues aux capteurs correspondants
+                tableau['Capteur 1'].append(int(Data))
+                tableau['Capteur 2'].append(int(Data))  # Remplacez par la bonne valeur
+                tableau['Capteur 3'].append(int(Data))  # Remplacez par la bonne valeur
+                tableau['Capteur 4'].append(int(Data))  # Remplacez par la bonne valeur
+                tableau['Capteur 5'].append(int(Data))  # Remplacez par la bonne valeur
+
+                # Gérer le timestamp
+                if len(tableau['Timecode']) < nombre_cycle_reception_tableau + 1:
+                    tableau['Timecode'].append(timestamp)
+                    timestamp += 500
+
+                nombre_donnee_reception_tableau += 1
+
+                if nombre_donnee_reception_tableau == nombre_donnee_reception:
+                    nombre_cycle_reception_tableau += 1
+                    nombre_donnee_reception_tableau = 0
+            else:
+                print(tableau)
+                calib_messages.insert(tk.END, "Mesure finie \n")
+                calib_messages.delete(1.0, tk.END)
+                Val_etape += 1
+                ser.close()
+
+            # Retourner le tableau à la fin de la fonction
+        return tableau
 
 
-    except serial.SerialException as e:
-        print(f"Erreur lors de l'ouverture du port série : {e}")
+def clear_tableau():
+    # Vider toutes les listes associées à chaque capteur
+    tableau['Capteur 1'] = []
+    tableau['Capteur 2'] = []
+    tableau['Capteur 3'] = []
+    tableau['Capteur 4'] = []
+    tableau['Capteur 5'] = []
+    tableau['Timecode'] = []
 
 
 # Fonction pour mettre à jour le graphique en fonction des cases cochées
 def update_plot():
-    selected_measures = [measure for measure, var in zip(data.keys(), measure_checkbuttons) if var.get()]
+    selected_measures = [measure for measure, var in zip(tableau.keys(), measure_checkbuttons) if var.get()]
     if any(selected_measures):
         show_graph(selected_measures)
         canvas3.draw()
@@ -132,8 +286,8 @@ def show_graph(selected_measures):
     plotted = False  # Variable pour vérifier si au moins une mesure est tracée
 
     for measure in selected_measures:
-        if measure in data and data[measure] is not None:
-            ax3.plot(data['Timecode'], data[measure], label=measure)
+        if measure in tableau and tableau[measure] is not None:
+            ax3.plot(tableau['Timecode'], tableau[measure], label=measure)
             plotted = True
 
     if plotted:
@@ -146,20 +300,20 @@ def show_graph(selected_measures):
 
 
 # Fonction pour afficher le tableau de données avec une barre de défilement
-def show_table_with_scrollbar(data):
+def show_table_with_scrollbar(tableau):
     # Création du cadre pour contenir le tableau et la barre de défilement
     frame = ttk.Frame(tab2)
     frame.pack(fill='both', expand=True)
 
     # Création du tableau avec les en-têtes
-    tree = ttk.Treeview(frame, columns=tuple(data.keys()), show='headings')
-    for col in data.keys():
+    tree = ttk.Treeview(frame, columns=tuple(tableau.keys()), show='headings')
+    for col in tableau.keys():
         tree.heading(col, text=col)
         tree.column(col, width=100)
 
     # Ajout des données dans le tableau
-    for i in range(len(data['Timecode'])):
-        tree.insert('', 'end', values=tuple([data[col][i] for col in data.keys()]))
+    for i in range(len(tableau['Timecode'])):
+        tree.insert('', 'end', values=tuple([tableau[col][i] for col in tableau.keys()]))
 
     # Configuration de la barre de défilement
     scrollbar = ttk.Scrollbar(frame, orient='vertical', command=tree.yview)
@@ -170,37 +324,37 @@ def show_table_with_scrollbar(data):
     scrollbar.pack(side=tk.RIGHT, fill='y')
 
 
-def update_table(tree, data):
+def update_table(tree, tableau):
     # Effacez les anciennes entrées dans le tableau
     for item in tree.get_children():
         tree.delete(item)
 
     # Ajoutez les nouvelles données dans le tableau
-    for i in range(len(data['Timecode'])):
-        tree.insert('', 'end', values=tuple([data[col][i] for col in data.keys()]))
+    for i in range(len(tableau['Timecode'])):
+        tree.insert('', 'end', values=tuple([tableau[col][i] for col in tableau.keys()]))
 
 
 # Fonction pour importer les données au format CSV et remplacer les données existantes
 def import_from_csv():
-    global data
+    global tableau
     file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
     if file_path:
         df = pd.read_csv(file_path, sep=';')  # Assurez-vous de spécifier le bon séparateur
-        new_data = df.to_dict(orient='list')
+        new_tableau = df.to_dict(orient='list')
 
-        # Mettez à jour le dictionnaire data avec les nouvelles données
-        for key, value in new_data.items():
-            data[key] = value
+        # Mettez à jour le dictionnaire tableau avec les nouvelles données
+        for key, value in new_tableau.items():
+            tableau[key] = value
 
         # Mettez à jour le tableau avec les nouvelles données
-        update_table(tree, data)
+        update_table(tree, tableau)
 
 
 # Fonction pour exporter les données au format CSV
-def export_to_csv(data):
+def export_to_csv(tableau):
     file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
     if file_path:
-        df = pd.DataFrame(data)
+        df = pd.tableauFrame(tableau)
         df.to_csv(file_path, index=False, sep=';')  # Ajout du paramètre sep=';'
 
 
@@ -214,38 +368,38 @@ def on_tab_change(event):
 
 
 # Fonction pour créer et afficher la heatmap
-def show_heatmap_on_tab4(timecode_value, ax4, data):
-    update_heatmap(timecode_value, ax4, data)
+def show_heatmap_on_tab4(timecode_value, ax4, tableau):
+    update_heatmap(timecode_value, ax4, tableau)
 
 
 # Fonction pour mettre à jour la heatmap en fonction du timecode sélectionné
-def update_heatmap(timecode_value, ax4, data):
+def update_heatmap(timecode_value, ax4, tableau):
     timecode = int(timecode_value)
-    first_values = [data['Capteur 1'][timecode - 1], data['Capteur 2'][timecode - 1], data['Capteur 3'][timecode - 1],
-                    data['Capteur 4'][timecode - 1], data['Capteur 5'][timecode - 1]]
+    first_values = [tableau['Capteur 1'][timecode - 1], tableau['Capteur 2'][timecode - 1], tableau['Capteur 3'][timecode - 1],
+                    tableau['Capteur 4'][timecode - 1], tableau['Capteur 5'][timecode - 1]]
 
-    heatmap_data = np.zeros((7, 7))
-    heatmap_data[1, 1] = first_values[0]
-    heatmap_data[5, 1] = first_values[1]
-    heatmap_data[3, 3] = first_values[2]
-    heatmap_data[1, 5] = first_values[3]
-    heatmap_data[5, 5] = first_values[4]
+    heatmap_tableau = np.zeros((7, 7))
+    heatmap_tableau[1, 1] = first_values[0]
+    heatmap_tableau[5, 1] = first_values[1]
+    heatmap_tableau[3, 3] = first_values[2]
+    heatmap_tableau[1, 5] = first_values[3]
+    heatmap_tableau[5, 5] = first_values[4]
 
     # Define a function to get the average of adjacent points
     def get_average(x, y):
         neighbors = [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]
         valid_neighbors = [(i, j) for i, j in neighbors if 0 <= i < 7 and 0 <= j < 7]
-        values = [heatmap_data[i, j] for i, j in valid_neighbors]
+        values = [heatmap_tableau[i, j] for i, j in valid_neighbors]
         return np.mean(values) if values else 0
 
     # Fill in undefined points with the average of adjacent points
     for i in range(7):
         for j in range(7):
-            if heatmap_data[i, j] == 0:
-                heatmap_data[i, j] = get_average(i, j)
+            if heatmap_tableau[i, j] == 0:
+                heatmap_tableau[i, j] = get_average(i, j)
 
     ax4.clear()
-    im = ax4.imshow(heatmap_data, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
+    im = ax4.imshow(heatmap_tableau, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
     colorbar.update_normal(im)
     canvas4.draw()
 
@@ -259,7 +413,7 @@ def prev_timecode():
 
 def next_timecode():
     current_value = slider.get()
-    if current_value < len(data['Timecode']):
+    if current_value < len(tableau['Timecode']):
         slider.set(current_value + 1)
 
 
@@ -268,7 +422,7 @@ def toggle_play():
     global playing
     current_value = slider.get()
 
-    if playing and current_value < len(data['Timecode']):
+    if playing and current_value < len(tableau['Timecode']):
         slider.set(current_value + 1)
         tab4.after(1000, toggle_play)  # Change timecode every 1000 milliseconds (1 second)
     else:
@@ -280,7 +434,7 @@ def toggle_restart():
 
 
 def toggle_end():
-    slider.set(len(data['Timecode']))
+    slider.set(len(tableau['Timecode']))
 
 
 def show_loading_popup():
@@ -322,46 +476,42 @@ notebook.pack(fill="both", expand=True)
 # Liste des contenus pour chaque onglet
 tab_contents = []
 
-# Contenu pour l'onglet 1
+# Contenu de l'onglet 1
 tab1 = tabs[0]
-
-# Création de la zone pour afficher les messages de la console
 connect_messages = tk.Text(tab1, height=1, width=50)
 connect_messages.pack(pady=10)
 port = trouver_port_arduino_portenta()
-if port != None:
+if port is not None:
     connect_messages.insert(tk.END, "Votre appareil est bien connecté\n")
 else:
     connect_messages.delete('1.0', tk.END)
     connect_messages.insert(tk.END, "Votre appareil est déconnecté\n")
 
-# Ajout du slider pour régler le temps de mesure
-time_slider_label = tk.Label(tab1, text="Nombre de mesure désiré :")
+time_slider_label = tk.Label(tab1, text="Nombre de mesure désiré:")
 time_slider_label.pack(pady=2)
 
 time_slider = tk.Scale(tab1, from_=1, to=180, orient="horizontal", length=300)
 time_slider.pack()
-valeur_du_curseur = time_slider.get()
+Nombre_cycle = time_slider.get()
 
-# Ajout de la zone pour le poids de l'utilisateur
 weight_label = tk.Label(tab1, text="Poids de l'utilisateur en kg:")
 weight_label.pack(pady=10)
 
 weight_entry = tk.Entry(tab1)
 weight_entry.pack(pady=10)
 
-start_button = tk.Button(tab1, text="Démarrer la mesure", bg="green", fg="white", font=("Arial", 20, "bold"),command=lambda: [show_loading_popup(), serie()])
+start_button = tk.Button(tab1, text="Démarrer la mesure", bg="green", fg="white",
+                         font=("Arial", 20, "bold"), command=lambda: [show_loading_popup(), serie()])
 start_button.pack(pady=20)
-# Ajout nécessaire de connexion pour le portenta dans l'onglet 1
 
-# Bouton d'exportation
-export_button = ttk.Button(tab1, text="Exporter en CSV", command=lambda: export_to_csv(data))
+export_button = ttk.Button(tab1, text="Exporter en CSV", command=lambda: export_to_csv(tableau))
 export_button.pack(pady=10)
 
-# Bouton d'importation
-import_button = ttk.Button(tab1, text="Importer depuis CSV",  command=lambda: import_from_csv())
+import_button = ttk.Button(tab1, text="Importer depuis CSV", command=lambda: import_from_csv())
 import_button.pack(pady=10)
-Calib_button = tk.Button(tab1, text="Autocalibration", bg="green", fg="white", font=("Arial", 20, "bold"),command=lambda: [calib()])
+
+Calib_button = tk.Button(tab1, text="Autocalibration", bg="green", fg="white",
+                         font=("Arial", 20, "bold"), command=lambda: [calib()])
 Calib_button.pack(pady=20)
 
 calib_messages = tk.Text(tab1, height=6, width=50)
@@ -374,14 +524,14 @@ frame = ttk.Frame(tab2)
 frame.pack(fill='both', expand=True)
 
 # Création du tableau avec les en-têtes
-tree = ttk.Treeview(frame, columns=tuple(data.keys()), show='headings')
-for col in data.keys():
+tree = ttk.Treeview(frame, columns=tuple(tableau.keys()), show='headings')
+for col in tableau.keys():
     tree.heading(col, text=col)
     tree.column(col, width=100)
 
 # Ajout des données dans le tableau
-for i in range(len(data['Timecode'])):
-    tree.insert('', 'end', values=tuple([data[col][i] for col in data.keys()]))
+for i in range(len(tableau['Timecode'])):
+    tree.insert('', 'end', values=tuple([tableau[col][i] for col in tableau.keys()]))
 
 # Configuration de la barre de défilement
 scrollbar = ttk.Scrollbar(frame, orient='vertical', command=tree.yview)
@@ -398,7 +548,7 @@ tab3 = tabs[2]
 measure_checkbuttons = []
 
 # Ajout des cases à cocher pour chaque mesure
-for i, measure in enumerate(data.keys()):
+for i, measure in enumerate(tableau.keys()):
     if measure != 'Timecode':
         var = tk.IntVar()
         check_button = tk.Checkbutton(tab3, text=measure, variable=var, command=update_plot)
@@ -409,7 +559,7 @@ for i, measure in enumerate(data.keys()):
 fig3 = Figure(figsize=(16, 9), dpi=100)
 ax3 = fig3.add_subplot(111)
 canvas3 = FigureCanvasTkAgg(fig3, master=tab3)
-canvas3.get_tk_widget().grid(row=0, column=1, rowspan=len(data) - 1, sticky=tk.W + tk.E + tk.N + tk.S)
+canvas3.get_tk_widget().grid(row=0, column=1, rowspan=len(tableau) - 1, sticky=tk.W + tk.E + tk.N + tk.S)
 
 # Onglet 4 (contenant la heatmap)
 tab4 = tabs[3]
@@ -423,14 +573,14 @@ canvas_widget = canvas4.get_tk_widget()
 canvas_widget.grid(row=0, column=0, columnspan=5, sticky=tk.NSEW)  # Ensure canvas expands to fill the available space
 
 # Initialisation de la colorbar
-heatmap_data = np.zeros((50, 50))
-im = ax4_heatmap.imshow(heatmap_data, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
+heatmap_tableau = np.zeros((50, 50))
+im = ax4_heatmap.imshow(heatmap_tableau, cmap='YlGnBu', interpolation='nearest', vmin=0, vmax=max_value)
 colorbar = fig4.colorbar(im, ax=ax4_heatmap)
 colorbar.ax.set_ylabel('Pression [N]')
 
 # Curseur pour faire défiler les valeurs du timecode
-slider = tk.Scale(tab4, from_=1, to=len(data['Timecode']), orient="horizontal",
-                  command=lambda value: show_heatmap_on_tab4(int(value), ax4_heatmap, data))
+slider = tk.Scale(tab4, from_=1, to=len(tableau['Timecode']), orient="horizontal",
+                  command=lambda value: show_heatmap_on_tab4(int(value), ax4_heatmap, tableau))
 slider.grid(row=1, column=0, columnspan=5, sticky=tk.NSEW)
 
 # Bp next et prev play pause
