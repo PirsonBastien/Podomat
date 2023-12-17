@@ -45,7 +45,7 @@ def trouver_port_arduino_portenta():
 
 # Permet l'autocalibration des capteurs
 def calib():
-    port = trouver_port_arduino_portenta()
+    port = 'COM3'
     baud_rate = 9600
 
     ser = serial.Serial(port, baud_rate, timeout=1)
@@ -74,7 +74,6 @@ def calib():
         Resistance_pot_string = str(R) + '\n'
         ser.write(Resistance_pot_string.encode('utf-8'))
 
-    ser.write(message.encode())
     ref = 1000
     nb_donnee_reception_tableau = 0
     nb_cycle_reception_tableau = 0
@@ -167,13 +166,13 @@ def calib():
 # Envoie les donnée vers le portenta
 def serie():
     clear_tableau()
-    port = trouver_port_arduino_portenta()
+    port = 'COM3'
     baud_rate = 9600
 
     # Connection au port com => A enlever
     ser = serial.Serial(port, baud_rate, timeout=1)
     print(f"Connexion établie sur {port} à {baud_rate} bps")
-
+    print(Nombre_cycle)
     Val_etape = 1
 
     # Envoi du nombre de de cycle
@@ -191,8 +190,9 @@ def serie():
 
     while Val_etape < 8:
         Data = ser.readline().decode('utf-8').strip()
+        print(Data)
         if Val_etape == 1 and Data == 'Reception données fin':
-            Etape = Data
+            Etape = donnee
             Data = 0
             print(Etape)
             calib_messages.insert(tk.END, Etape + '\n')
