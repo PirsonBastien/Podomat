@@ -44,11 +44,25 @@ void setup() {
   sdramMem = (uint16_t *)mySDRAM.malloc(maxSensorValue * nbreSensor * sizeof(uint16_t));
 
   // Initialisation des ADC avec des résolutions, fréquences d'échantillonnage, nombres d'échantillons par canal et taille de file d'attente
-  if (!adc1.begin(AN_RESOLUTION_16, 3600000, 1, 8) || !adc2.begin(AN_RESOLUTION_16, 3600000, 1, 8) || !adc3.begin(AN_RESOLUTION_16, 3600000, 1, 8)) {
-    // En cas d'échec de l'initialisation, boucle infinie
-    while (1);
+  if (!adc1.begin(AN_RESOLUTION_16, 3600000, 1, 8)) {
+    //Serial.println("Echec 1");
+    while (1)
+      ;
+  }
+
+  if (!adc2.begin(AN_RESOLUTION_16, 3600000, 1, 8)) {
+    //Serial.println("Echec 2");
+    while (1)
+      ;
+  }
+
+  if (!adc3.begin(AN_RESOLUTION_16, 3600000, 1, 8)) {
+    //Serial.println("Echec 3");
+    while (1)
+      ;
   }
 }
+
 
 void loop() {
   // Fonction pour recevoir les données de l'application Python
@@ -82,6 +96,8 @@ void reception_donnee() {
         potentiometre[i - 1] = data2;
       }
     }
+    //Préviens l'application que les données ont été reçues
+    Serial.println("Reception données fin");
     // Active la bascule pour indiquer que les données ont été reçues
     bascule = 1;
   }
@@ -101,6 +117,9 @@ void reglage_pot() {
   pot1.setVolatileWiper(1, potentiometre[5]);
   pot1.setVolatileWiper(2, potentiometre[6]);
   pot1.setVolatileWiper(3, potentiometre[7]);
+
+  // Préviens l'application que les potar sont réglés
+  Serial.println("Reglage pot ok");
 }
 
 void adc_read_buf(AdvancedADC &adc) {
@@ -138,6 +157,8 @@ void acquisition(uint nbreCycle, uint samplingFrequency) {
     // Attend jusqu'à la prochaine lecture pour définir la vitesse d'échantillonnage
     while (micros() - microsTimer < samplingTimer);
   }
+  // Préviens l'application que l'acquisition est finie
+  Serial.println("Acquisition ok");
 }
 
 void envoie_donnee() {
